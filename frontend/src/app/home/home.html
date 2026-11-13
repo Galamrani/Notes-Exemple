@@ -1,0 +1,7 @@
+<p class="api-status" [class]="state()">
+  @switch (state()) {
+    @case ('online') { API: online }
+    @case ('offline') { API: offline }
+    @default { API: checking… }
+  }
+</p>
