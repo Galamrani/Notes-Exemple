@@ -1,0 +1,16 @@
+.api-status {
+  font-family: system-ui, sans-serif;
+  font-size: 1.25rem;
+}
+
+.online {
+  color: #1a7f37;
+}
+
+.offline {
+  color: #b42318;
+}
+
+.checking {
+  color: #57606a;
+}
