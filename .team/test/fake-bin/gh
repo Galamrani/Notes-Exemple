@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Fake gh for the self-test: records the call and prints a PR URL.
+[ "${1:-}" = auth ] && exit 0
+[ -z "${FAKE_GH_FAIL:-}" ] || { echo "gh: not logged in" >&2; exit 1; }
+printf '%s\n' "$@" >"${FAKE_STATE:?}/gh.args"
+echo "https://github.com/example/repo/pull/1"

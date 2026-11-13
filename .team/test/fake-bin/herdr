@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# Fake herdr for .team/test/selftest.sh. Implements just the CLI surface the
+# orchestrator uses, and plays scripted agents that misbehave on purpose
+# (stop early, forget to commit, fail QA, conflict on merge, dirty the tree).
+set -u
+S="${FAKE_STATE:?}"; mkdir -p "$S/agents" "$S/panes" "$S/calls"
+echo "$*" >>"$S/herdr.log"
+next() { until mkdir "$S/lock" 2>/dev/null; do sleep 0.05; done
+         local n=$(( $(cat "$S/$1.n" 2>/dev/null || echo 0) + 1 )); echo "$n" >"$S/$1.n"; rmdir "$S/lock"; echo "$n"; }
+opt() { local want="$1"; shift; while [ $# -gt 0 ]; do [ "$1" = "$want" ] && { echo "${2:-}"; return; }; shift; done; }
+err() { echo "{\"error\":{\"code\":\"$1\"}}" >&2; exit 1; }
+status_json() { local k=agent_status; [ -z "${FAKE_NO_STATUS_FIELD:-}" ] || k=lifecycle
+                echo "{\"result\":{\"agent\":{\"name\":\"$1\",\"$k\":\"$2\"}}}"; }
+times() { local f="$S/calls/$(echo "$1" | tr '/' '_')"; local n=$(( $(cat "$f" 2>/dev/null || echo 0) + 1 )); echo "$n" >"$f"; echo "$n"; }
+
+cmd="${1:-} ${2:-}"; shift 2 2>/dev/null
+case "$cmd" in
+"workspace create")
+  n=$(next ws); echo "$(opt --cwd "$@")" >"$S/panes/w$n:p1"
+  echo "{\"result\":{\"workspace\":{\"workspace_id\":\"w$n\"},\"tab\":{\"tab_id\":\"w$n:t1\"},\"root_pane\":{\"pane_id\":\"w$n:p1\"}}}" ;;
+"tab create")
+  ws=$(opt --workspace "$@"); [ -f "$S/panes/$ws:p1" ] || err workspace_not_found
+  grep -qx "$ws" "$S/closed" 2>/dev/null && err workspace_not_found
+  [ -n "$(opt --label "$@")" ] || err tab_without_label
+  n=$(next tab); id="$ws:t$n:p1"; echo "$(opt --cwd "$@")" >"$S/panes/$id"
+  echo "{\"result\":{\"tab\":{\"tab_id\":\"$ws:t$n\"},\"root_pane\":{\"pane_id\":\"$id\"}}}" ;;
+"workspace close") echo "$1" >>"$S/closed" ;;
+"pane split")
+  [ -f "$S/panes/$1" ] || err pane_not_found
+  id="${1%%:*}:p$(( $(next pane) + 1 ))"; echo "$(opt --cwd "$@")" >"$S/panes/$id"
+  echo "{\"result\":{\"pane\":{\"pane_id\":\"$id\"}}}" ;;
+"agent start")
+  name="$1"; pane=$(opt --pane "$@")
+  echo "$name" | grep -Eq '^[a-z][a-z0-9_-]{0,31}$' || err invalid_agent_name
+  [ -f "$S/agents/$name" ] && err agent_name_taken
+  [ -f "$S/panes/$pane" ] || err pane_not_found
+  [ -f "$S/panes/$pane.busy" ] && err agent_pane_busy
+  : >"$S/panes/$pane.busy"; cat "$S/panes/$pane" >"$S/agents/$name"; echo "$*" >>"$S/starts"
+  case "$name" in qa-*-s2) : >"$S/agents/$name.block" ;; esac     # this one hits a permission prompt once
+  status_json "$name" idle ;;
+"agent list") echo '{"result":{"agents":[]}}' ;;
+"agent get")  [ -f "$S/agents/$1" ] || err agent_not_found; status_json "$1" idle ;;
+"agent wait") [ -f "$S/agents/$1" ] || err agent_not_found
+  if [ -f "$S/agents/$1.block" ]; then rm -f "$S/agents/$1.block"; status_json "$1" blocked; else status_json "$1" idle; fi ;;
+"agent prompt")
+  name="$1"; text="$2"; [ -f "$S/agents/$name" ] || err agent_not_found
+  wt=$(cat "$S/agents/$name"); cd "$wt" || err bad_cwd
+  f=$(printf '%s' "$text" | grep -oE '\.team/io/[A-Za-z0-9._-]+-task\.md' | head -n 1)
+  [ -f "$f" ] || err "assignment_missing_$f"
+  base=$(basename "$f" -task.md); n=$(times "$name-$base"); io=.team/io
+  note() { printf 'STATUS: DONE\n\n## What changed\n- %s\n' "$1" >"$io/$base.md"; }
+  case "$name" in
+  doctor-*) echo OK >"$io/${base}.txt" ;;
+  plan-*)
+    grep -q '^# Role: Planner' "$f" || err role_missing
+    if [ "$n" = 1 ]; then echo "scribble" >>README.md      # stops early, and dirties a tracked file
+    else cat >"$io/plan.json" <<'EOF'
+{"summary":"three pieces","subtasks":[
+ {"id":"s1","title":"first","description":"d","acceptance":["a"],"files":["src/s1.txt"],"depends_on":[]},
+ {"id":"s2","title":"second","description":"d","acceptance":["a"],"files":["shared.txt"],"depends_on":[]},
+ {"id":"s3","title":"third","description":"d","acceptance":["a"],"files":["src/s3.txt"],"depends_on":["s1","s2"]}]}
+EOF
+    fi ;;
+  dev-*)
+    grep -q '^# Role: Developer' "$f" || err role_missing
+    mkdir -p src
+    case "$base" in
+    s1-dev-r1) echo s1 >src/s1.txt; echo "from s1" >shared.txt; git add -A; git commit -qm "s1"; note s1 ;;
+    s2-dev-r1) echo "from s2" >shared.txt; git add -A; git commit -qm "s2"; note s2 ;;
+    s[0-9]m-dev-r1) git merge -q "$(git rev-parse --abbrev-ref HEAD | sed -E 's/-s[0-9]+$//')" >/dev/null 2>&1; printf 'from s1\nfrom s2\n' >shared.txt; git add -A; git commit -qm "merge team/t1"; note merged ;;
+    s3-dev-r1)
+      [ -f src/s1.txt ] && grep -q "from s2" shared.txt || err s3_started_without_dependencies
+      if [ "$n" = 1 ]; then echo s3 >src/s3.txt; note s3              # forgets to commit
+      else git add -A; git commit -qm "s3"; fi ;;
+    fix1-dev-r1) echo fix >src/fix.txt; : >FAIL_GATE; git add -A; git commit -qm "fix (breaks tests)"; note fix ;;
+    fix1-dev-r2) grep -q 'gate-r1.log' "$f" || err no_gate_feedback; git rm -q FAIL_GATE; git commit -qm "fix tests"; note fix ;;
+    *-dev-r*) grep -q 'qa-r' "$f" || err no_qa_feedback; echo "$base" >>"src/${base%%-*}.txt"; git add -A; git commit -qm "$base"; note "$base" ;;
+    esac ;;
+  qa-*)
+    grep -q '^# Role: QA' "$f" || err role_missing
+    out="$io/${base}.md"
+    [ -n "${FAKE_QA_ALWAYS_FAIL:-}" ] && [ "${base%%-*}" = s1 ] && base=always-fail
+    case "$base" in
+    always-fail) printf 'VERDICT: FAIL\n\n## Bugs\n### B1 (high): still broken\n' >"$out" ;;
+    s1-qa-r1) printf 'VERDICT: FAIL\n\n## Bugs\n### B1 (high): broken\n' >"$out"; echo hack >>src/s1.txt; echo x >stray.txt ;;
+    s1-qa-r2) grep -q 's1-qa-r1.md' "$f" || err no_previous_report; printf 'VERDICT: PASS\n' >"$out" ;;
+    s3-qa-r1) printf '\n**VERDICT: PASS**  \n' >"$out" ;;      # decorated, as real agents sometimes write it
+    *) printf 'VERDICT: PASS\n' >"$out" ;;
+    esac ;;
+  rev-*)
+    grep -q '^# Role: Reviewer' "$f" || err role_missing
+    case "$base" in
+    review-r1) printf 'VERDICT: CHANGES\n\n## Blocking\n1. src/s1.txt:1 — x — y\n' >"$io/review-r1.md" ;;
+    *) printf 'VERDICT: APPROVE\n' >"$io/$base.md"; printf 'Add the thing\n\n## What and why\nbecause\n' >"$io/pr.md" ;;
+    esac ;;
+  esac
+  status_json "$name" idle ;;
+*) echo "fake herdr: unsupported: $cmd" >&2; exit 2 ;;
+esac

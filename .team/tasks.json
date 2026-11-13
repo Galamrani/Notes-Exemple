@@ -1,0 +1,82 @@
+{
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Scaffold the .NET API and the Angular app",
+      "description": "The repository is empty apart from .team/ and .gitignore. Create the two projects described under Layout in the guidelines, wired together and testable, with no notes features yet. Backend: an ASP.NET Core Web API (controllers) in backend/Notes.Api and an xUnit project in backend/Notes.Api.Tests, both in backend/Notes.sln; one endpoint GET /api/health returning {\"status\":\"ok\"}; CORS or a dev proxy so the Angular dev server can call the API. Frontend: a new Angular app in frontend/ (standalone components, strict mode, routing, plain CSS, no SSR) whose home page calls /api/health through a service and shows whether the API is reachable. Add a root README.md with the commands to run and test both sides.",
+      "acceptance": [
+        "dotnet build backend succeeds with no warnings",
+        "dotnet test backend passes and includes a WebApplicationFactory test proving GET /api/health returns 200 with {\"status\":\"ok\"}",
+        "frontend/package.json has a test:ci script that runs all tests once, headless, and (cd frontend && npm run test:ci) passes",
+        "(cd frontend && npm run build) succeeds",
+        "The home page shows 'API: online' when the health call succeeds and 'API: offline' when it fails, and both cases are covered by a component or service test",
+        "git status is clean after building and testing both projects (build output is ignored, not committed)",
+        "README.md documents how to run the API, run the frontend, and run all tests"
+      ],
+      "priority": 1,
+      "status": "todo",
+      "subtasks": [],
+      "branch": null,
+      "pr": null
+    },
+    {
+      "id": "T2",
+      "title": "Notes API: create, list, get, update, delete",
+      "description": "Add a Note resource to the backend. A note has id (integer, generated), title (required, 1-100 characters after trimming), body (optional, up to 2000 characters), createdAt and updatedAt (UTC, set by the server). Store notes with EF Core in a SQLite file; create the database automatically on startup. Endpoints: GET /api/notes (newest first), GET /api/notes/{id}, POST /api/notes, PUT /api/notes/{id}, DELETE /api/notes/{id}. Follow the backend rules in the guidelines: thin controllers, a NotesService, DTO records. Backend only; do not touch frontend/.",
+      "acceptance": [
+        "POST /api/notes with a valid title returns 201, a Location header, and the created note including id, createdAt and updatedAt",
+        "POST or PUT with a missing, empty, whitespace-only or over-100-character title returns 400 with a problem-details body; a body over 2000 characters also returns 400",
+        "GET /api/notes returns all notes ordered by createdAt, newest first; an empty database returns 200 with []",
+        "GET, PUT and DELETE on an id that does not exist return 404",
+        "PUT changes title and body, updates updatedAt, and leaves createdAt unchanged",
+        "DELETE returns 204 and the note is gone from later GET requests",
+        "Every rule above is covered by a WebApplicationFactory test using in-memory SQLite, and dotnet test backend passes",
+        "The SQLite database file is git-ignored and is not committed"
+      ],
+      "priority": 2,
+      "status": "todo",
+      "subtasks": [],
+      "branch": null,
+      "pr": null
+    },
+    {
+      "id": "T3",
+      "title": "Notes page: list, add and delete notes",
+      "description": "Build the notes UI in the Angular app on top of the API from T2. Add a NotesService for all /api/notes calls and a notes page at the route /notes (make / redirect to it; keep the API status indicator visible in the page header). The page lists notes newest first, showing title, body and created date, has a form to add a note (title and body), and a delete button on each note that asks for confirmation. Frontend only; do not change the API contract.",
+      "acceptance": [
+        "Opening /notes loads and shows the notes from GET /api/notes, newest first",
+        "With no notes, the page shows the text 'No notes yet'",
+        "Submitting the form with a valid title creates the note through the API, the new note appears at the top without a page reload, and the form is cleared",
+        "The add button is disabled, or a validation message is shown, when the title is empty, only spaces, or longer than 100 characters; no request is sent in that case",
+        "Deleting a note asks for confirmation, calls DELETE, and removes it from the list; cancelling the confirmation does nothing",
+        "If loading, creating or deleting fails, a visible error message is shown and the list is left unchanged",
+        "Components do not use HttpClient directly; NotesService and the notes page have tests for the cases above, and npm run test:ci passes"
+      ],
+      "priority": 3,
+      "status": "todo",
+      "subtasks": [],
+      "branch": null,
+      "pr": null
+    },
+    {
+      "id": "T4",
+      "title": "Edit notes and search by text",
+      "description": "Two additions that touch both sides. Search: GET /api/notes accepts an optional q query parameter and returns only notes whose title or body contains q, case-insensitive; the notes page gets a search box that filters the list through the API as the user types (debounced, about 300 ms). Edit: each note on the page gets an Edit button that turns it into an inline form for title and body with Save and Cancel, using PUT /api/notes/{id} and the same validation rules as creating a note.",
+      "acceptance": [
+        "GET /api/notes?q=milk returns only notes with 'milk' in the title or body, in any letter case; q that is empty or only spaces behaves like no q",
+        "Backend tests cover a match in the title, a match in the body, case-insensitivity, and no matches (200 with [])",
+        "Typing in the search box updates the list from the API after a short pause, sends one request per pause rather than one per keystroke, and clearing the box shows all notes again",
+        "When a search has no results the page shows 'No notes match your search', which is different from the 'No notes yet' text",
+        "Edit, change the title, Save: the note shows the new title without a page reload and stays in the same position in the list",
+        "Cancel restores the original text and sends no request; Save with an invalid title shows a validation message and sends no request",
+        "If saving fails, a visible error is shown and the note stays in edit mode with the user's text",
+        "dotnet test backend and npm run test:ci both pass with tests for the behaviour above"
+      ],
+      "priority": 4,
+      "status": "todo",
+      "subtasks": [],
+      "branch": null,
+      "pr": null
+    }
+  ]
+}
