@@ -53,4 +53,4 @@ dotnet test backend
 cd frontend && npm run test:ci
 ```
 
-`npm run test:ci` runs the frontend tests once, headless, and exits non-zero on failure. Run `npm install` in `frontend/` first if you have not already.
+`npm run test:ci` runs the frontend tests once, headless, and exits non-zero on failure. If `frontend/node_modules` is missing, it first runs `npm ci` to install the locked dependencies.
