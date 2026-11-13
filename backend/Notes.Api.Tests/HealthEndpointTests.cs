@@ -1,11 +1,9 @@
 using System.Net;
 using System.Text.Json;
-using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace Notes.Api.Tests;
 
-public class HealthEndpointTests(WebApplicationFactory<Program> factory)
-    : IClassFixture<WebApplicationFactory<Program>>
+public class HealthEndpointTests(NotesApiFactory factory) : IClassFixture<NotesApiFactory>
 {
     [Fact]
     public async Task GetHealth_ReturnsOkWithStatusOk()
