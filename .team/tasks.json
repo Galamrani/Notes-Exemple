@@ -14,10 +14,29 @@
         "README.md documents how to run the API, run the frontend, and run all tests"
       ],
       "priority": 1,
-      "status": "todo",
-      "subtasks": [],
-      "branch": null,
-      "pr": null
+      "status": "pr_open",
+      "subtasks": [
+        {
+          "id": "s1",
+          "title": "Scaffold the .NET solution with a health endpoint and an xUnit test",
+          "depends_on": [],
+          "status": "merged"
+        },
+        {
+          "id": "s2",
+          "title": "Scaffold the Angular app with a health service, home page and dev proxy",
+          "depends_on": [],
+          "status": "merged"
+        },
+        {
+          "id": "s3",
+          "title": "Write the root README with run and test commands",
+          "depends_on": ["s1", "s2"],
+          "status": "merged"
+        }
+      ],
+      "branch": "team/t1",
+      "pr": "https://github.com/Galamrani/Notes-Exemple/pull/1"
     },
     {
       "id": "T2",
