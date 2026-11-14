@@ -34,10 +34,17 @@
         "The SQLite database file is git-ignored and is not committed"
       ],
       "priority": 2,
-      "status": "todo",
-      "subtasks": [],
-      "branch": null,
-      "pr": null
+      "status": "pr_open",
+      "subtasks": [
+        {
+          "id": "s1",
+          "title": "Add the Notes CRUD API with EF Core SQLite storage and tests",
+          "depends_on": [],
+          "status": "merged"
+        }
+      ],
+      "branch": "team/t2",
+      "pr": "https://github.com/Galamrani/Notes-Exemple/pull/3"
     },
     {
       "id": "T3",
