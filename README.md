@@ -21,6 +21,20 @@ dotnet run --project backend/Notes.Api
 
 The `http` launch profile (`backend/Notes.Api/Properties/launchSettings.json`) makes the API listen on http://localhost:5180 in the Development environment. Check it with http://localhost:5180/api/health, which returns `{"status":"ok"}`.
 
+### Notes API
+
+| Method | Route | Result |
+| --- | --- | --- |
+| `GET` | `/api/notes` | `200` with all notes, newest `createdAt` first |
+| `GET` | `/api/notes/{id}` | `200` with the note, or `404` |
+| `POST` | `/api/notes` | `201` with the created note and a `Location` header |
+| `PUT` | `/api/notes/{id}` | `200` with the updated note, or `404` |
+| `DELETE` | `/api/notes/{id}` | `204`, or `404` |
+
+`POST` and `PUT` take `{"title": "...", "body": "..."}`. The title is required and must be 1–100 characters after trimming (it is stored trimmed); the body is optional, up to 2000 characters. Invalid input returns `400` with a problem-details body. Notes have `id`, `title`, `body`, `createdAt` and `updatedAt` (UTC, ending in `Z`).
+
+Notes are stored in SQLite. The connection string is `ConnectionStrings:Notes` in `backend/Notes.Api/appsettings.json` (`Data Source=notes.db`), so with the command above the database file is `backend/Notes.Api/notes.db`. The API creates it automatically on first start; it is git-ignored. Delete it to start with an empty database. The tests use an in-memory SQLite database and never create this file.
+
 ## Running the frontend
 
 Start the API first, then in a second terminal:
